@@ -1,0 +1,136 @@
+---
+title: "HW5.qmd"
+format: html
+editor: visual
+embed-resources: true
+---
+
+```{python}
+import altair as alt
+import pandas as pd
+from vega_datasets import data
+```
+
+## Exercise 1
+
+```{python}
+jobs_url = "https://cdn.jsdelivr.net/npm/vega-datasets@2.8.0/data/jobs.json"
+jobs = pd.read_json(jobs_url)
+print(jobs[0:4])
+```
+
+```{python}
+alt.data_transformers.enable("json")
+alt.Chart(jobs).transform_pivot(
+  'year',
+  value='perc',
+  groupby=['sex', 'job']
+  ).mark_point().encode(
+  alt.X("1950:Q", scale = alt.Scale(type = "symlog", constant = 0.0001)),
+  alt.Y("2000:Q", scale = alt.Scale(type = "symlog", constant = 0.0001)),
+    column = 'sex:N',
+    tooltip=['sex', 'job', 'year']
+)
+
+```
+
+```{python}
+filtered_jobs = jobs[(jobs['job'] == 'Athlete') | (jobs['job'] == 'Actor')]
+
+jobs = alt.data_transformers.enable("json")
+alt.Chart(filtered_jobs).encode(
+  alt.X("year:O"),
+  alt.Y("perc:Q"),
+    color='job:N',
+    tooltip=['sex', 'job', 'year']
+).properties(width = 350)
+
+jobs = alt.Chart(filtered_jobs).encode(
+    alt.X("year:O"),
+    alt.Y("perc:Q"),
+    color='job:N',
+    tooltip=['sex', 'job', 'year']
+).properties(width=350)
+
+(jobs.mark_line() + jobs.mark_point()).facet(row='sex:O')
+
+```
+
+## Exercise 2
+
+```{python}
+ countries = data.countries()
+ gapminder = data.gapminder()
+ unemployment = data.unemployment()
+ health_income = data.gapminder_health_income()
+ countries.head()
+
+```
+
+```{python}
+world = alt.topo_feature(data.world_110m.url, 'countries')
+country_map = alt.Chart(world).mark_geoshape(
+    fill='#eeeeee',
+    stroke='grey'
+).project('naturalEarth1')
+
+country_map.properties(width = 600, height = 400)
+```
+
+```{python}
+import json 
+from urllib.request import urlopen
+
+world2_url = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+
+
+world = alt.topo_feature(data.world_110m.url, 'countries')
+health_income = data.gapminder_health_income()
+
+world2 = json.load(urlopen(world2_url))
+print(type(world2))
+print(world2.keys())
+
+
+```
+
+```{python}
+world = alt.topo_feature(world2_url, feature='countries')
+world_map = alt.Chart(world).mark_geoshape().transform_lookup(
+  lookup='properties.name',
+  from_ = alt.LookupData(health_income, 'country',['income'])
+  ).encode(
+    fill = "income:Q",
+    tooltip = ["properties.name:N"]
+    ).project('mercator')
+    
+world_map.properties(width = 800, height = 300)
+```
+
+## Exercise 3
+
+1.  Visit one of the visualization galleries listed below. Pick one graphic that you particularly like and analyze it.
+
+    The graphic I chose can be found using the following link: <https://www.reddit.com/r/dataisbeautiful/comments/1bbrk5q/oc_immigrants_from_africa_by_county/>
+
+2.  
+
+    a.  What is the main story of this graphic?
+
+        a.  This graphic's aim is to show the most popular places in the US for African immigrants to live. In particular, the highest two locations are the Washington D.C. suburbs and Hennepin County in Minnesota.
+
+    b.  What makes it a good graphic?
+
+        a.  I enjoyed that the size of each dot, and color of each dot represent different things, yet it doesn't over-crowd the graphic. Additionally, the glyphs are plotted in a way where there is no overlap.
+
+    c.  What features do you think you would know how to implement in Vega-lite?
+
+        a.  I could implement the two different features for each point in Vega-lite, and I could probably plot them on a projection.
+
+    d.  Are there any features of the graphic that you would not know how to do in Vega-lite? If so, list them.
+
+        a.  I think the hardest thing would be to get the dots to not overlap each other.
+
+        b.  The total population map in the top right I assume would also be hard to implement, unless it is just an image of another graphic
+
+        c.  The text positioning and the highlighting of text would be hard to implement as well.
