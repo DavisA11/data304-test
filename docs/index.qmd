@@ -6,4 +6,6 @@ editor: visual
 
 ## Davis Addink Data 304 Portfolio
 
-[Homework 5](https://davisa11.github.io/data304-test/HW_5.html)
+[Homework 5](https://davisa11.github.io/data304-test/HW%205.html)
+
+[Homework 7](https://davisa11.github.io/data304-test/HW%207.html)
