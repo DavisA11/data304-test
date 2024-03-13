@@ -1,0 +1,310 @@
+---
+title: "Homework 7"
+format: html
+editor: visual
+embed-resources: true
+---
+
+```{python}
+import altair as alt
+import pandas as pd
+from vega_datasets import data
+```
+
+### Data and Graphics Challenge
+
+```{python}
+countries_url = "https://raw.githubusercontent.com/lukes/ISO-3166-Countries-with-Regional-Codes/master/all/all.csv"
+
+countries = pd.read_csv(countries_url)
+print(countries[0:4])
+
+gas = pd.read_csv("pump_price_for_gasoline_us_per_liter.csv")
+print(gas[0:4])
+
+countries.rename(columns={'name': 'country'}, inplace = True)
+
+year_columns = gas.columns[1:][gas.columns[1:].str.isnumeric()]
+
+odd_years = [int(year) for year in year_columns if int(year) % 2 != 0]
+
+filtered_gas = gas.drop(columns=[str(year) for year in odd_years])
+
+melted_gas = pd.melt(filtered_gas, id_vars=['country'], var_name='year', value_name='gas_value')
+
+gas_countries = pd.merge(countries, melted_gas, on = 'country')
+```
+
+```{python}
+gas_countries['gas_value'] = gas_countries['gas_value'].astype(float)
+
+average_gas = gas_countries.groupby(['year', 'region']).agg(average_gas=('gas_value', 'mean')).reset_index()
+
+gas_chart = alt.Chart(average_gas).encode(
+  alt.X("year:O", title='Year'),
+  alt.Y("average_gas:Q", title= 'Average Gas Price'),
+    color=alt.Color('region:N', legend=None),
+    tooltip=['average_gas','region', 'year']
+).properties(width = 600, title = 'Average Gas Price per Region')
+
+gas_chart.mark_line() + gas_chart.mark_point()
+```
+
+## World Values Survey
+
+```{python}
+values = pd.read_csv("https://calvin-data304.netlify.app/data/wvs.csv")
+#print(values[0:4])
+
+country_counts = values['country'].value_counts().reset_index()
+country_counts.columns = ['country', 'count']
+
+values_bar = alt.Chart(country_counts).mark_bar().encode(
+  alt.X("country:N", title='Country', sort=alt.EncodingSortField(field='count', order='descending')),
+  alt.Y("count:Q", title= 'Count of Entries')
+).properties(width = 600, title = 'Count of Entries in Values Survey')
+
+values_bar
+```
+
+It appears that Canada had many more respondents that the other countries.
+
+```{python}
+values_sampled = values.sample(n=5000, random_state=42)
+
+
+age_histogram = alt.Chart(values_sampled).mark_bar().encode(
+    x=alt.X("age:Q", bin=alt.Bin(step=5), title='Age'),
+    y=alt.Y("count()", title='Count')
+).properties(
+    width=400,
+    title='Distribution of Age Across All Countries'
+)
+
+age3_bar = alt.Chart(values_sampled).mark_bar().encode(
+    x=alt.X("age3:N", title='Age Group'),
+    y=alt.Y("count()", title='Count'),
+    color=alt.Color("country:N", legend=alt.Legend(title='Country'))
+).properties(
+    width=400,
+    title='Distribution of Respondents Across 3 Age Groups for Each Country'
+)
+
+# 3. Bar chart for 'age6' variable
+age6_bar = alt.Chart(values_sampled).mark_bar().encode(
+    x=alt.X("age6:N", title='Age Group'),
+    y=alt.Y("count()", title='Count'),
+    color=alt.Color("country:N", legend=alt.Legend(title='Country'))
+).properties(
+    width=400,
+    title='Distribution of Respondents Across 6 Age Groups for Each Country'
+)
+
+# Combine the charts
+combined_charts = (age_histogram | age3_bar | age6_bar).resolve_scale(y='independent')
+
+combined_charts
+```
+
+The country 'NLD' in the first age group for both `age3` and `age6` has very little entries. The other country that stuck out to me was Canada, as they have a consistent number of entries for each age across both `age3` and `age6`.\
+
+```{python}
+values_sampled = values.sample(n=5000, random_state=42)
+
+values_10 = values_sampled[values_sampled['democracy_importance'] == 10]
+
+# Group the filtered data by country and age group
+grouped_values_10 = values_10.groupby(['country', 'age6']).size().reset_index(name='count_10')
+
+# Aggregate the total number of responses for each country and age group
+agg_total_responses = values_sampled.groupby(['country', 'age6']).size().reset_index(name='total_responses')
+
+# Merge the count of responses equal to 10 with the total responses
+merged_values = pd.merge(grouped_values_10, agg_total_responses, on=['country', 'age6'], how='outer')
+
+# Calculate the percentage of responses equal to 10
+merged_values['percentage_10'] = (merged_values['count_10'] / merged_values['total_responses']) * 100
+
+
+error_bands = alt.Chart(merged_values).mark_errorband(extent='ci').encode(
+    x=alt.X("age6:N", title='Age Group'),
+    y=alt.Y("percentage_10:Q", title='Proportion of People with 10 in Democracy Importance'),
+    yError="ci",
+    color=alt.Color("country:N", legend=alt.Legend(title='Country'))
+)
+
+average_line = alt.Chart(merged_values).mark_line().encode(
+    x=alt.X("age6:N", title='Age Group'),
+    y=alt.Y("percentage_10:Q", title='Average'),
+    color=alt.Color("country:N", legend=None)
+)
+
+average_dots = alt.Chart(merged_values).mark_point().encode(
+    x=alt.X("age6:N"),
+    y=alt.Y("percentage_10:Q"),
+    color=alt.Color("country:N", legend=None)
+)
+
+layered_chart = alt.layer(average_line, average_dots, error_bands).facet(
+  column=alt.Column("country:N", title = None),
+  spacing = 10
+)
+
+
+
+layered_chart.properties(
+  title='Percentage of people who say it is "essential" to live in a democracy')
+```
+
+```{python}
+values_sampled = values.sample(n=5000, random_state=42)
+
+agg_values = values_sampled.groupby(['country', 'age6']).agg(mean_democracy_importance=('democracy_importance', 'mean')).reset_index()
+
+error_bands = alt.Chart(agg_values).mark_errorband(extent='ci').encode(
+    x=alt.X("age6:N", title='Age Group'),
+    y=alt.Y("mean_democracy_importance:Q", title='Democracy Importance'),
+    yError="ci",
+    color=alt.Color("country:N", legend=alt.Legend(title='Country'))
+)
+
+average_line = alt.Chart(agg_values).mark_line().encode(
+    x=alt.X("age6:N", title='Age Group'),
+    y=alt.Y("mean_democracy_importance:Q", title='Average'),
+    color=alt.Color("country:N", legend=None)
+)
+
+average_dots = alt.Chart(agg_values).mark_point().encode(
+    x=alt.X("age6:N"),
+    y=alt.Y("mean_democracy_importance:Q"),
+    color=alt.Color("country:N", legend=None)
+)
+
+layered_chart = alt.layer(average_line, average_dots, error_bands).facet(
+  column=alt.Column("country:N", title = None),
+  spacing = 10
+)
+
+
+
+layered_chart.properties(
+  title='Average of people who say it is "essential" to live in a democracy')
+
+```
+
+I chose to keep all of the different facets on the same y axis, because it is easier to compare them. I calculated the proportion of ten making a new dataset that has the count of '10' for each country and the total responses. I wasn't able to get the error bands to appear, and I'm not sure why.
+
+```{python}
+values_sampled = values.sample(n=5000, random_state=42)
+
+agg_values = values_sampled.groupby(['country', 'age']).agg(mean_democracy_importance=('democracy_importance', 'mean')).reset_index()
+
+error_bands = alt.Chart(agg_values).mark_errorband(extent='ci').encode(
+    x=alt.X("age:N", title='Age Group'),
+    y=alt.Y("mean_democracy_importance:Q", title='Democracy Importance'),
+    yError="ci",
+    color=alt.Color("country:N", legend=alt.Legend(title='Country'))
+)
+
+average_line = alt.Chart(agg_values).mark_line().encode(
+    x=alt.X("age:N", title='Age Group'),
+    y=alt.Y("mean_democracy_importance:Q", title='Average'),
+    color=alt.Color("country:N", legend=None)
+)
+
+average_dots = alt.Chart(agg_values).mark_point().encode(
+    x=alt.X("age:N"),
+    y=alt.Y("mean_democracy_importance:Q"),
+    color=alt.Color("country:N", legend=None)
+)
+
+layered_chart = alt.layer(average_line, average_dots, error_bands).facet(
+  facet = 'country:N',
+  columns = 3
+)
+
+layered_chart.properties(
+  title='Average of people who say it is "essential" to live in a democracy')
+
+```
+
+Using `age` gives a broader look at the survey distribution between ages. I would argue that it is worse, because the same idea is communicated with the previous graphic using less space.
+
+```{python}
+
+values_sampled = values.sample(n=5000, random_state=42)
+
+values_10 = values_sampled[values_sampled['democracy_importance'] == 10]
+
+grouped_values_10 = values_10.groupby(['country', 'age6']).size().reset_index(name='count_10')
+
+agg_total_responses = values_sampled.groupby(['country', 'age6']).size().reset_index(name='total_responses')
+
+merged_values = pd.merge(grouped_values_10, agg_total_responses, on=['country', 'age6'], how='outer')
+
+merged_values['percentage_10'] = (merged_values['count_10'] / merged_values['total_responses']) * 100
+
+loess_chart = alt.Chart(merged_values).mark_line().encode(
+    x=alt.X("age6:N", title='Age Group'),
+    y=alt.Y("percentage_10:Q", title='Percentage of People with 10 in Democracy Importance'),
+    color=alt.Color("country:N", legend=alt.Legend(title='Country'))
+).transform_loess(
+    'age6', 'percentage_10', groupby=['country'], as_=['age6', 'percentage_10_loess']
+)
+
+average_dots = alt.Chart(merged_values).mark_point().encode(
+    x=alt.X("age6:N"),
+    y=alt.Y("percentage_10:Q"),
+    color=alt.Color("country:N", legend=None)
+)
+
+layered_chart = (loess_chart + average_dots).facet(
+    column=alt.Column("country:N", title=None),
+    spacing=10
+).properties(
+    title='Percentage of people who say it is "essential" to live in a democracy'
+)
+
+layered_chart
+
+```
+
+I like the graphic without the line better, because the line hints that there is connection between the different age groups, or potentially the same people over time.
+
+```{python}
+linear_regression_chart = alt.Chart(merged_values).mark_line().encode(
+    x=alt.X("age6:N", title='Age Group'),
+    y=alt.Y("percentage_10:Q", title='Percentage of People with 10 in Democracy Importance'),
+    color=alt.Color("country:N", legend=alt.Legend(title='Country'))
+).transform_regression(
+    'age6', 'percentage_10', method='linear', groupby=['country']
+).properties(
+    width = 300,
+    height = 400)
+
+polynomial_regression_chart = alt.Chart(merged_values).mark_line().encode(
+    x=alt.X("age6:N", title='Age Group'),
+    y=alt.Y("percentage_10:Q", title='Percentage of People with 10 in Democracy Importance'),
+    color=alt.Color("country:N", legend=alt.Legend(title='Country'))
+).transform_regression(
+    'age6', 'percentage_10', method='poly', order=3, groupby=['country']  
+).properties(
+    width = 300,
+    height = 400)
+
+linear_regression_facet = linear_regression_chart.facet(
+    facet = 'country:N',
+  columns = 3
+).properties(
+    title='Linear Regression Trend Line'
+)
+
+polynomial_regression_facet = polynomial_regression_chart.facet(
+    facet = 'country:N',
+  columns = 3
+).properties(
+    title='Polynomial Regression Trend Line (Order 3)'
+)
+
+linear_regression_facet|polynomial_regression_facet
+```
